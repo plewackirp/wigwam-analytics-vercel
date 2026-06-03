@@ -8,7 +8,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
-from report_generator import generate_report
+from lib.report_generator import generate_report
 
 
 class handler(BaseHTTPRequestHandler):
@@ -31,7 +31,8 @@ class handler(BaseHTTPRequestHandler):
                 month_ending = _field_value(form, "month_ending")
                 dealer_name = _field_value(form, "dealer_name") or "GoBros"
 
-                filename = f"{_safe_stem(f'Wigwam Analytics {month_ending or "generated"}')}.xlsx"
+                filename_label = f"Wigwam Analytics {month_ending or 'generated'}"
+                filename = f"{_safe_stem(filename_label)}.xlsx"
                 output_path = tmp / filename
 
                 generate_report(
