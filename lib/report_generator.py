@@ -216,16 +216,19 @@ def _refresh_report_sheet(report_ws, inventory_by_sku, dealer_name, month_value)
         report_ws.cell(row_idx, 28).value = f"=IFERROR(VLOOKUP(F{row_idx},Sheet2!$AE$1:$AF$20000,2,FALSE),0)"
         report_ws.cell(row_idx, 29).value = f"=IFERROR(VLOOKUP(F{row_idx},Sheet2!$AG$1:$AH$20000,2,FALSE),0)"
 
-        report_ws.cell(row_idx, 31).value = _number(fbm_inventory.get("mfn-fulfillable-quantity"))
-        report_ws.cell(row_idx, 32).value = _number(fba_inventory.get("afn-fulfillable-quantity"))
+        report_ws.cell(row_idx, 31).value = _inventory_number(
+            fbm_inventory,
+            ["mfn-fulfillable-quantity", "quantity"],
+        )
+        report_ws.cell(row_idx, 32).value = _inventory_number(fba_inventory, ["afn-fulfillable-quantity"])
         inbound = (
-            _number(fba_inventory.get("afn-inbound-working-quantity"))
-            + _number(fba_inventory.get("afn-inbound-shipped-quantity"))
-            + _number(fba_inventory.get("afn-inbound-receiving-quantity"))
+            _inventory_number(fba_inventory, ["afn-inbound-working-quantity"])
+            + _inventory_number(fba_inventory, ["afn-inbound-shipped-quantity"])
+            + _inventory_number(fba_inventory, ["afn-inbound-receiving-quantity"])
         )
         report_ws.cell(row_idx, 33).value = inbound
-        report_ws.cell(row_idx, 34).value = _number(fba_inventory.get("afn-unsellable-quantity"))
-        report_ws.cell(row_idx, 35).value = _number(fba_inventory.get("afn-total-quantity"))
+        report_ws.cell(row_idx, 34).value = _inventory_number(fba_inventory, ["afn-unsellable-quantity"])
+        report_ws.cell(row_idx, 35).value = _inventory_number(fba_inventory, ["afn-total-quantity"])
         report_ws.cell(row_idx, 36).value = f"=SUM(AE{row_idx}+AI{row_idx})"
         report_ws.cell(row_idx, 37).value = f"=SUM(AJ{row_idx}*O{row_idx})"
 
@@ -274,6 +277,21 @@ def _first_present(row: dict[str, Any], keys: list[str]) -> Any:
         normalized = _normalize_header(key)
         if normalized in row and row[normalized] not in (None, ""):
             return row[normalized]
+    return None
+
+
+def _inventory_number(row: dict[str, Any], keys: list[str]) -> float | int:
+    return _number(_inventory_value(row, keys))
+
+
+def _inventory_value(row: dict[str, Any], keys: list[str]) -> Any:
+    normalized_row = {_normalize_header(key): value for key, value in row.items()}
+    for key in keys:
+        for candidate in (key, _normalize_header(key)):
+            if candidate in row and row[candidate] not in (None, ""):
+                return row[candidate]
+            if candidate in normalized_row and normalized_row[candidate] not in (None, ""):
+                return normalized_row[candidate]
     return None
 
 
