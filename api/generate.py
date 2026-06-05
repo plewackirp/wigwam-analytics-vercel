@@ -27,6 +27,7 @@ class handler(BaseHTTPRequestHandler):
                 tmp = Path(tmp_name)
                 business_path = _save_upload(form, "business_report", tmp)
                 inventory_path = _save_upload(form, "inventory_report", tmp)
+                fba_inventory_path = _save_upload(form, "fba_inventory_report", tmp)
                 gobros_path = _save_upload(form, "gobros_sales", tmp, required=False)
                 month_ending = _field_value(form, "month_ending")
                 dealer_name = _field_value(form, "dealer_name") or "GoBros"
@@ -38,6 +39,7 @@ class handler(BaseHTTPRequestHandler):
                 generate_report(
                     business_report=business_path,
                     inventory_report=inventory_path,
+                    fba_inventory_report=fba_inventory_path,
                     gobros_sales=gobros_path,
                     output_path=output_path,
                     month_ending=month_ending,

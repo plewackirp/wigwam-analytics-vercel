@@ -52,6 +52,7 @@ def generate_report(
     month_ending: str | None = None,
     dealer_name: str = "GoBros",
     gobros_sales: Path | None = None,
+    fba_inventory_report: Path | None = None,
 ) -> dict[str, Any]:
     if not TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Missing template workbook: {TEMPLATE_PATH}")
@@ -68,16 +69,23 @@ def generate_report(
     _refresh_business_sheet(business_ws, _read_table(business_report))
     _refresh_gobros_sheet(gobros_ws, _read_table(gobros_sales) if gobros_sales else [])
 
-    inventory_rows = _read_table(inventory_report)
-    inventory_by_sku = {
+    fbm_inventory_rows = _read_table(inventory_report)
+    fba_inventory_rows = _read_table(fba_inventory_report) if fba_inventory_report else fbm_inventory_rows
+    fbm_inventory_by_sku = {
         str(row.get("sku", "")).strip(): row
-        for row in inventory_rows
+        for row in fbm_inventory_rows
+        if str(row.get("sku", "")).strip()
+    }
+    fba_inventory_by_sku = {
+        str(row.get("sku", "")).strip(): row
+        for row in fba_inventory_rows
         if str(row.get("sku", "")).strip()
     }
 
     stats = _refresh_report_sheet(
         report_ws=report_ws,
-        inventory_by_sku=inventory_by_sku,
+        fbm_inventory_by_sku=fbm_inventory_by_sku,
+        fba_inventory_by_sku=fba_inventory_by_sku,
         dealer_name=dealer_name,
         month_value=month_value,
     )
@@ -94,7 +102,8 @@ def generate_report(
     return {
         "output": str(output_path),
         "business_rows": max(business_ws.max_row - 1, 0),
-        "inventory_rows": len(inventory_rows),
+        "inventory_rows": len(fbm_inventory_rows),
+        "fba_inventory_rows": len(fba_inventory_rows),
         "matched_inventory_rows": stats["matched_inventory_rows"],
         "missing_inventory_rows": stats["missing_inventory_rows"],
     }
@@ -181,7 +190,7 @@ def _refresh_gobros_sheet(ws, rows: list[dict[str, Any]]) -> None:
             ws.cell(row_idx, col_idx).value = value
 
 
-def _refresh_report_sheet(report_ws, inventory_by_sku, dealer_name, month_value):
+def _refresh_report_sheet(report_ws, fbm_inventory_by_sku, fba_inventory_by_sku, dealer_name, month_value):
     matched = 0
     missing = 0
     for row_idx in range(DETAIL_FIRST_ROW, DETAIL_LAST_ROW + 1):
@@ -194,8 +203,8 @@ def _refresh_report_sheet(report_ws, inventory_by_sku, dealer_name, month_value)
         if month_value is not None:
             report_ws.cell(row_idx, 2).value = month_value
 
-        fbm_inventory = inventory_by_sku.get(fbm_sku, {})
-        fba_inventory = inventory_by_sku.get(fba_sku, {})
+        fbm_inventory = fbm_inventory_by_sku.get(fbm_sku, {})
+        fba_inventory = fba_inventory_by_sku.get(fba_sku, {})
         if fbm_inventory or fba_inventory:
             matched += 1
         else:
