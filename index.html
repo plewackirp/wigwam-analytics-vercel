@@ -337,10 +337,84 @@
 
   <script>
     const form = document.getElementById("report-form");
-    form.addEventListener("submit", () => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
       form.classList.add("is-submitting");
-      form.querySelector("button").disabled = true;
+      const button = form.querySelector("button");
+      button.disabled = true;
+      try {
+        const payload = await buildUploadPayload(form);
+        const compressed = await gzipPayload(payload);
+        const response = await fetch(form.action, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/octet-stream",
+            "X-GoBros-Upload": "gzip-json"
+          },
+          body: compressed
+        });
+
+        if (!response.ok) {
+          const message = await response.text();
+          throw new Error(message || `Upload failed with status ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const filename = getDownloadFilename(disposition) || "Wigwam-Analytics.xlsx";
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        alert(error instanceof Error ? error.message : "Could not generate workbook.");
+      } finally {
+        form.classList.remove("is-submitting");
+        button.disabled = false;
+      }
     });
+
+    async function buildUploadPayload(formElement) {
+      const formData = new FormData(formElement);
+      const fileFields = ["business_report", "inventory_report", "fba_inventory_report", "gobros_sales"];
+      const files = {};
+      for (const field of fileFields) {
+        const file = formData.get(field);
+        if (file instanceof File && file.size > 0) {
+          files[field] = {
+            filename: file.name,
+            content: await file.text()
+          };
+        }
+      }
+
+      return {
+        fields: {
+          dealer_name: String(formData.get("dealer_name") || ""),
+          month_ending: String(formData.get("month_ending") || "")
+        },
+        files
+      };
+    }
+
+    async function gzipPayload(payload) {
+      if (!("CompressionStream" in window)) {
+        throw new Error("This browser cannot compress uploads. Please use the latest Chrome, Edge, or Safari.");
+      }
+      const json = JSON.stringify(payload);
+      const stream = new Blob([json], { type: "application/json" }).stream();
+      const compressedStream = stream.pipeThrough(new CompressionStream("gzip"));
+      return await new Response(compressedStream).blob();
+    }
+
+    function getDownloadFilename(disposition) {
+      const match = disposition.match(/filename="([^"]+)"/i);
+      return match ? match[1] : "";
+    }
   </script>
 </body>
 </html>
