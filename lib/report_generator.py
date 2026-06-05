@@ -133,12 +133,7 @@ def _refresh_business_sheet(ws, rows: list[dict[str, Any]]) -> None:
         for col_idx, value in enumerate(values, start=1):
             ws.cell(row_idx, col_idx).value = value
 
-        sku = values[3]
-        units = values[14]
-        sales = values[18]
-        sessions = values[4]
-        buy_box = values[12]
-        helper_values = [sku, units, sku, sales, sku, sessions, sku, buy_box]
+    for row_idx, helper_values in enumerate(_business_helper_rows(rows), start=2):
         for offset, value in enumerate(helper_values, start=27):
             ws.cell(row_idx, offset).value = value
 
@@ -188,6 +183,31 @@ def _refresh_gobros_sheet(ws, rows: list[dict[str, Any]]) -> None:
             ws.cell(row_idx, col_idx).value = value
         for col_idx, value in enumerate(source_values, start=8):
             ws.cell(row_idx, col_idx).value = value
+
+
+def _business_helper_rows(rows: list[dict[str, Any]]) -> list[list[Any]]:
+    totals: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        normalized = {_normalize_header(k): v for k, v in row.items()}
+        sku = str(_first_present(normalized, ["sku"]) or "").strip()
+        if not sku:
+            continue
+        if sku not in totals:
+            totals[sku] = {"units": 0, "sales": 0, "sessions": 0, "buy_box_total": 0, "buy_box_count": 0}
+        totals[sku]["units"] += _number(_first_present(normalized, ["unitsordered", "units ordered"]))
+        totals[sku]["sales"] += _number(_first_present(normalized, ["orderedproductsales", "ordered product sales"]))
+        totals[sku]["sessions"] += _number(_first_present(normalized, ["sessionstotal", "sessions total"]))
+        buy_box = _percent(_first_present(normalized, ["featuredofferbuyboxpercentage", "featured offer buy box percentage"]))
+        if buy_box:
+            totals[sku]["buy_box_total"] += buy_box
+            totals[sku]["buy_box_count"] += 1
+
+    helper_rows = []
+    for sku, values in totals.items():
+        buy_box_count = values["buy_box_count"]
+        buy_box = values["buy_box_total"] / buy_box_count if buy_box_count else 0
+        helper_rows.append([sku, values["units"], sku, values["sales"], sku, values["sessions"], sku, buy_box])
+    return helper_rows
 
 
 def _refresh_report_sheet(report_ws, fbm_inventory_by_sku, fba_inventory_by_sku, dealer_name, month_value):
